@@ -626,23 +626,23 @@ def get_possible_adjacency(game, square, last, adjacent_squares):
         if all([game.adjacency not in x for x in adjacent_squares]):
             cant_be.append(game.adjacency)
 
-    #if get_up(game.board, square) and game.adjacency in get_up(game.board, square):
-    #    # check that this is the last match for the top row row and cur column
-    #    up_row_vals=get_vals_in_zone(game.board, "ROW" + str(square[0]-1))
-    #    cur_row_vals=get_vals_in_zone(game.board, "ROW" + str(square[0]))
-    #    if ([game.adjacency in x for x in up_row_vals[:square[1]]].count(True) == 1) and \
-    #       ([game.adjacency in x for x in cur_row_vals[:square[1]]].count(True) == 0):
-    #        if not found_one:
-    #            # we're about to move away from the only square that we can attach to
-    #            must_be.append(game.adjacency)
-    #        else:
-    #            # we're about to move away from the last square that can be adjacent
-    #            if game.adjacency in game.attribution and game.attribution not in all_vals:
-    #                must_be.append(game.attribution)
-    #            if game.equilibrium == game.adjacency:
-    #                above_total, below_total = get_above_and_below_totals(game.board, game.equilibrium)
-    #                if above_total > below_total:
-    #                    must_be.append(game.equilibrium)
+    if get_up(game.board, square) and game.adjacency in get_up(game.board, square):
+        # check that this is the last match for the top row row and cur column
+        up_row_vals=game.board[square[0]-1][:].decode().tolist()
+        cur_row_vals=game.board[square[0]][:square[1]].decode().tolist()
+        if ([game.adjacency in x for x in up_row_vals].count(True) == 1) and \
+           ([game.adjacency in x for x in cur_row_vals].count(True) == 0):
+            if not found_one:
+                # we're about to move away from the only square that we can attach to
+                must_be.append(game.adjacency)
+            else:
+                # we're about to move away from the last square that can be adjacent
+                if game.adjacency in game.attribution and game.attribution not in all_vals:
+                    must_be.append(game.attribution)
+                if game.equilibrium == game.adjacency:
+                    above_total, below_total = get_above_and_below_totals(game.board, game.equilibrium)
+                    if above_total > below_total:
+                        must_be.append(game.equilibrium)
 
     #if last:
     #    if not check_adjacency(game.board, game.adjacency):
@@ -761,10 +761,13 @@ def get_possible_priority(game, square, last):
 
     diff = count2 - count1 + 1
     if diff == num_sq_left:
-        must_be.append(game.priority)
+        #logging.debug("APPENDING " + game.priority[0])
+        must_be.append(game.priority[0])
     elif diff > num_sq_left:
         broken = True
         return ReturnVals(must_be, cant_be, broken)
+    elif diff == num_sq_left + 1:
+        cant_be.append(game.priority[1])
     return ReturnVals(must_be, cant_be, broken)
 
 def get_possible_priority_old(game, square, last):
@@ -832,6 +835,7 @@ def undo_last_step(board, i, cards, cant_be_dict):
 def multi_try_find_valid_state(game):
     for i in range(0,200):
         if find_valid_state(game, 50):
+            #logging.info("MULTI TRY: {}".format(i))
             return True
         if i % 10 == 0:
             logging.debug ("Try #{}".format(i))
@@ -881,6 +885,7 @@ def find_valid_state(game, cutoff=0):
             logging.info ("Tried: " + str(num_end_states))
         if i == len(SQ_INDEX_LIST):
             if check_win(game):
+                #logging.info ("FIND TRY: {}".format(num_end_states))
                 return True
             else:
                 i=undo_last_step(game.board, i, cards, cant_be_dict)
@@ -931,48 +936,118 @@ def validate_rules(game):
 
     # 1. Attribution of rT with priority of rT
     if (game.attribution == game.priority):
-        logging.debug ("Invalid rules(1): " + ", ".join(rules))
+        logging.info ("Invalid rules(1): " + ", ".join(rules))
         return False
 
     # 2. Row1 / Row2 zoning with Column Uniformity T, Adjacency T, Equilibrium T
     if (game.zoning == "ROW1" or game.zoning == "ROW2") and game.uniformity == game.adjacency == game.equilibrium:
-        logging.debug ("Invalid rules(2): " + ", ".join(rules))
+        logging.info ("Invalid rules(2): " + ", ".join(rules))
         return False
 
     # 3. Row1 / Row2 zoning with Attraction T, Equilibrium T
     if (game.zoning == "ROW1" or game.zoning == "ROW2") and game.attraction == game.equilibrium:
-        logging.debug ("Invalid rules(3): " + ", ".join(rules))
+        logging.info ("Invalid rules(3): " + ", ".join(rules))
         return False
 
     # 4. Top/Bottom Middle zone, Equilibrium of T, Attraction with T
     if (game.zoning == 'TM' or game.zoning == 'LM') and game.equilibrium == game.attraction:
-        logging.debug ("Invalid rules(4): " + ', '.join(rules))
+        logging.info ("Invalid rules(4): " + ', '.join(rules))
         return False
 
-    # 5. Repulsion of Te with equilibrium of T
+    # 5. Repulsion of Te with equilibrium of T, and any row
     if (game.zoning[:3] == "ROW" and 'e' in game.repulsion):
-        logging.debug ("Invalid rules(5): " + ', '.join(rules))
+        logging.info ("Invalid rules(5): " + ', '.join(rules))
         return False
     
     return True
 
+def choose_new_rule(rule_name):
+    if rule_name == 'adjacency':
+        return random.choice(ADJACENCY_OPT)
+    elif rule_name == 'attraction':
+        return random.choice(ATTRACT_OPT)
+    elif rule_name == 'attribution':
+        return random.choice(ATTRIBUTION_OPT)
+    elif rule_name == 'equilibrium':
+        return random.choice(EQUILIBRIUM_OPT)
+    elif rule_name == 'priority':
+        return random.choice(PRIORITY_OPT)
+    elif rule_name == 'repulsion':
+        return random.choice(REPULSION_OPT)
+    elif rule_name == 'uniformity':
+        return random.choice(UNIFORM_OPT)
+    elif rule_name == 'zoning':
+        return random.choice(ZONING_OPT)
+    return None
 
+def adjust_rules(game):
+    # two player, change rules
+    rule_options=['adjacency', 'attraction', 'attribution', 'equilibrium', 'priority', 'repulsion', 'uniformity', 'zoning']
+    num_groups=2
+    random.shuffle(rule_options)
+    slice_size = int(len(rule_options) / num_groups)
+    for i in range(0,num_groups):
+        options = rule_options[i*slice_size:(i+1)*slice_size]
+        is_bad = True
+        val_dict=defaultdict(int)
+        while is_bad:
+            print ("RULES: " + ', '.join([game.adjacency, game.attraction,
+                                          game.attribution, game.equilibrium,
+                                          game.priority, game.repulsion,
+                                          game.uniformity, game.zoning]))
+            for option in options:
+                for val in getattr(game,option):
+                    val_dict[val] += 1
+            for key in val_dict:
+                found_bad=False
+                if val_dict[key] >= len(options)/2:
+                    found_bad=True
+                    for opt in options:
+                        if key in game.__getattribute__(opt):
+                            setattr(game, opt, choose_new_rule(opt))
+                if not found_bad:
+                    is_bad = False
+
+                    
 if __name__ == "__main__":
+    RANDOM = 0
+    ADJUST_RULES = 0  # the "players" adjust the rules they see to reduce repeat letters / colors
+    CHECK_IF_ALREADY_VALID = 0
     setup_logging()
     game = GameState()
-    for i,rules in enumerate(product(ADJACENCY_OPT, ATTRACT_OPT, ATTRIBUTION_OPT, EQUILIBRIUM_OPT, PRIORITY_OPT, REPULSION_OPT, UNIFORM_OPT, ZONING_OPT)):
-        #rules=['T', 'T', 'rT', 'T', 'gT', 'TC', 'CC', 'TR']
-        #rules="T, T, rT, T, gT, TC, CC, TL".split(', ')
-        if tuple(rules) in VALID_RULES:
-            print ("Already validated: " + str(rules))
-            continue
-        game.initialize_rules(*rules)
+    i=0
+    rules_prod = product(ADJACENCY_OPT, ATTRACT_OPT, ATTRIBUTION_OPT, EQUILIBRIUM_OPT, PRIORITY_OPT, REPULSION_OPT, UNIFORM_OPT, ZONING_OPT)
+    while True:
+        if RANDOM:
+            rules=(random.choice(ADJACENCY_OPT),
+                   random.choice(ATTRACT_OPT),
+                   random.choice(ATTRIBUTION_OPT),
+                   random.choice(EQUILIBRIUM_OPT),
+                   random.choice(PRIORITY_OPT),
+                   random.choice(REPULSION_OPT),
+                   random.choice(UNIFORM_OPT),
+                   random.choice(ZONING_OPT))
+
+            game.initialize_rules(*rules)
+            if ADJUST_RULES:
+                adjust_rules(game)
+        else:
+            rules = rules_prod.__next__()
+            game.initialize_rules(*rules)
+
+        if CHECK_IF_ALREADY_VALID:
+            if tuple(rules) in VALID_RULES:
+                print ("Already validated: " + str(rules))
+                i += 1
+                continue
         
         if not validate_rules(game):
+            i += 1
             continue
         print ("Trying: " + ', '.join(rules))
-        #if find_valid_state(game):
+
         if multi_try_find_valid_state(game):
             print (str(i) + ". TRUE: " + str(rules))
         else:
             print (str(i) + ". FALSE: " + str(rules))
+        i += 1
