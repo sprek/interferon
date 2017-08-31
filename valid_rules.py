@@ -1402,7 +1402,7 @@ VALID_RULES={
     ('T', 'T', 'rT', 'T', 'gT', 'Te', 'g', 'COL1'),
     ('T', 'T', 'rT', 'T', 'gT', 'Te', 'g', 'COL2'),
     ('T', 'T', 'rT', 'T', 'gT', 'Te', 'g', 'COL3'),
-        ('T', 'T', 'rT', 'T', 'gT', 'Te', 'r', 'LL'),
+    ('T', 'T', 'rT', 'T', 'gT', 'Te', 'r', 'LL'),
     ('T', 'T', 'rT', 'T', 'gT', 'Te', 'r', 'LR'),
     ('T', 'T', 'rT', 'T', 'gT', 'Te', 'b', 'TL'),
     ('T', 'T', 'rT', 'T', 'gT', 'Te', 'b', 'TR'),
