@@ -1,5 +1,6 @@
 
-
+import pdb
+from valid_rules import VALID_RULES
 import numpy as np
 from collections import namedtuple, defaultdict, deque
 from itertools import product
@@ -13,7 +14,7 @@ ATTRIBUTION_OPT=["rT", "gT", "bT", "yT", "rC", "gC", "bC", "yC", "rG", "gG", "bG
 EQUILIBRIUM_OPT=["T","C","G","A","r","g","b","y"]
 PRIORITY_OPT=["rT", "gT", "bT", "yT", "rC", "gC", "bC", "yC", "rG", "gG", "bG", "yG", "rA", "gA", "bA", "yA"]
 REPULSION_OPT=["TC", "TG", "TA", "Te", "CG", "CA", "Ce", "GA", "Ge", "Ae"]
-UNIFORM_OPT=["CT", "CC", "CG", "CA", "Cr", "Cg", "Cb", "Cy"]
+UNIFORM_OPT=["T", "C", "G", "A", "r", "g", "b", "y"]
 ZONING_OPT=["TL", "TM", "TR", "ML", "MR", "LL", "LM", "LR", "COL0", "COL1", "COL2", "COL3", "ROW0", "ROW1", "ROW2", "ROW3"]
 
 
@@ -158,6 +159,17 @@ def get_above_and_below_totals(board, val):
 
 def check_priority(board, priority_val):
     """ --------------------------------------------------
+    There must be a greater number of priority_val[0] than priority_val[1]
+    priority_val can be one of [rT,gT,bT,yT,rC,gC,bC,yC,rG,gG,bG,yG,rA,gA,bA,yA]
+    """
+    all_vals=get_all_vals_as_list(board)
+    
+    count1 = [x[0] if len(x) > 1 else None for x in all_vals].count(priority_val[0])
+    count2 = [x[1] if len(x) > 1 else None for x in all_vals].count(priority_val[1])
+    return count1 > count2
+
+def check_priority_old(board, priority_val):
+    """ --------------------------------------------------
     All priority_val[0] must be above all priority_val[1]
     priority_val can be one of [rT,gT,bT,yT,rC,gC,bC,yC,rG,gG,bG,yG,rA,gA,bA,yA]
     """
@@ -216,16 +228,17 @@ def check_repulsion(board, repulsion_val):
 def check_uniformity(board, uniformity_val):
     sq = np.nditer(board, flags=['multi_index'])
     col=-1
-    row=-1
+    #row=-1
     while not sq.finished:
-        if uniformity_val[1] in get_iterval(sq):
-            if row == -1 and uniformity_val[0]=='R':
-                row=sq.multi_index[0]
-            if col == -1 and uniformity_val[0]=='C':
+        if uniformity_val in get_iterval(sq):
+            #if row == -1 and uniformity_val[0]=='R':
+            #    row=sq.multi_index[0]
+            #if col == -1 and uniformity_val[0]=='C':
+            if col == -1:
                 col=sq.multi_index[1]
-            if row != -1:
-                if sq.multi_index[0] != row:
-                    return False
+            #if row != -1:
+            #    if sq.multi_index[0] != row:
+            #        return False
             if col != -1:
                 if sq.multi_index[1] != col:
                     return False
@@ -234,7 +247,7 @@ def check_uniformity(board, uniformity_val):
     # check that the minimum case exists
     total = 0
     for val in get_all_vals_as_list(board):
-        if uniformity_val[1] in val:
+        if uniformity_val in val:
             total += 1
             if total >= 2:
                 return True
@@ -361,6 +374,20 @@ def get_down_square(board, square):
         return None
     return (square[0]+1,square[1])
 
+def get_left_and_up_neighbors(board, square):
+    ReturnVal = namedtuple("ReturnVal", "left_square up_square values squares")
+    left_square = get_left_square(board,square)
+    up_square = get_up_square(board,square)
+    values=[]
+    squares=[]
+    if left_square:
+        values.append(get_val(board,left_square))
+        squares.append(left_square)
+    if up_square:
+        values.append(get_val(board,up_square))
+        squares.append(up_square)
+    return ReturnVal(left_square, up_square, values, squares)
+
 def check_mustbe_cantbe(must_be, cant_be):
     if len(must_be.intersection(cant_be)) > 0:
         return False
@@ -436,6 +463,7 @@ def get_possible_vals(game, square, last, prelim_cant_be):
     [cant_be.add(game.attribution[0] + x) for x in valid_letters.difference(set([game.attribution[1]]))]
     if last and not check_attribution(game.board, game.attribution):
         must_be.add(game.attribution)
+    
     logging.debug ("ATTRIBUTION: Must be: " + str(must_be) + " Cant be: " + str(cant_be))
 
     # equilibrium
@@ -474,9 +502,10 @@ def get_possible_vals(game, square, last, prelim_cant_be):
     logging.debug ("PRIORITY: Must be: " + str(must_be) + " Cant be: " + str(cant_be))
 
     # repulsion
-    if any([game.repulsion[0] in x for x in adjacent_squares]):
+    neighbor_vals=get_left_and_up_neighbors(game.board, square).values
+    if any([game.repulsion[0] in x for x in neighbor_vals]):
         cant_be.add(game.repulsion[1])
-    if any([game.repulsion[1] in x for x in adjacent_squares]):
+    if any([game.repulsion[1] in x for x in neighbor_vals]):
         cant_be.add(game.repulsion[0])
     if last and not check_repulsion(game.board, game.repulsion):
         all_vals=get_all_vals_as_list(game.board)
@@ -518,7 +547,7 @@ def get_possible_vals(game, square, last, prelim_cant_be):
 
     for item in must_be:
         if len(item) > 1:
-            return item
+            return [item]
         else:
             if item in valid_letters:
                 valid_letters=[item]
@@ -542,6 +571,10 @@ def get_possible_vals(game, square, last, prelim_cant_be):
 
     return valid_combos
 
+#def check_rule_combos(game, square):
+#    # attribution / adjacency
+#    if 
+
 def safe_remove(item, list_):
     if item in list_:
         return
@@ -553,27 +586,27 @@ def get_possible_uniformity(game, square, last):
     broken=False
 
     col=-1
-    row=-1
+    #row=-1
     fulfilled = check_uniformity(game.board, game.uniformity)
     sq = np.nditer(game.board, flags=['multi_index'])
     while not sq.finished:
-        if game.uniformity[1] in get_iterval(sq):
-            if row == -1 and game.uniformity[0]=='R':
-                row=sq.multi_index[0]
-            if col == -1 and game.uniformity[0]=='C':
+        if game.uniformity in get_iterval(sq):
+            #if row == -1 and game.uniformity[0]=='R':
+            #    row=sq.multi_index[0]
+            if col == -1:
                 col=sq.multi_index[1]
-            if row != -1:
-                if square[0] == row:
-                    if last and not fulfilled:
-                        must_be.append(game.uniformity[1])
-                else:
-                    cant_be.append(game.uniformity[1])
+            #if row != -1:
+            #    if square[0] == row:
+            #        if last and not fulfilled:
+            #            must_be.append(game.uniformity[1])
+            #    else:
+            #        cant_be.append(game.uniformity[1])
             if col != -1:
                 if square[1] == col:
                     if last and not fulfilled:
-                        must_be.append(game.uniformity[1])
+                        must_be.append(game.uniformity)
                 else:
-                    cant_be.append(game.uniformity[1])
+                    cant_be.append(game.uniformity)
         sq.iternext()
     if last and not fulfilled and len(must_be) == 0:
         broken=True
@@ -585,10 +618,26 @@ def get_possible_adjacency(game, square, last, adjacent_squares):
     cant_be=[]
     broken=False
     # get possibilities for adjacency
-    if any([game.adjacency in x for x in get_all_vals_as_list(game.board)]):
+    all_vals=get_all_vals_as_list(game.board)
+    found_one=False
+    if any([game.adjacency in x for x in all_vals]):
+        found_one=True
         # a game.adjacency exists
         if all([game.adjacency not in x for x in adjacent_squares]):
             cant_be.append(game.adjacency)
+
+    if get_up(game.board, square) and game.adjacency in get_up(game.board, square):
+        if not found_one:
+            # we're about to move away from the only square that we can attach to
+            must_be.append(game.adjacency)
+        else:
+            # we're about to move away from the last square that can be adjacent
+            if game.adjacency in game.attribution and game.attribution not in all_vals:
+                must_be.append(game.attribution)
+            if game.equilibrium == game.adjacency:
+                above_total, below_total = get_above_and_below_totals(game.board, game.equilibrium)
+                if above_total > below_total:
+                    must_be.append(game.equilibrium)
 
     #if last:
     #    if not check_adjacency(game.board, game.adjacency):
@@ -610,6 +659,7 @@ def get_possible_adjacency(game, square, last, adjacent_squares):
     return ReturnVals(must_be, cant_be, broken)
 
 def get_possible_attraction(game, square, last):
+    #pdb.set_trace()
     ReturnVals = namedtuple("ReturnVals","must_be cant_be broken")
     must_be=[]
     cant_be=[]
@@ -619,76 +669,100 @@ def get_possible_attraction(game, square, last):
     if square in [(0,0),(3,0),(0,3),(3,3)]:
         cant_be.append(game.attraction)
 
-    #fulfilled=False
-    #if last:
-    #    fulfilled = check_adjacency(game.board, game.adjacency)
-    #    if not fulfilled and game.attraction in cant_be:
-    #        # we must be in one of the corners
-    #        logging.debug ("Broken attraction " + game.attraction + " at " + str(square))
-    #        broken=True
-    #        return ReturnVals(must_be,cant_be,broken)
-
+    # check if any neighboring squares have the attraction value
+    # if so, we need to determine if it's ok for this square to be empty
     left_square=get_left_square(game.board, square)
-    right_square=get_right_square(game.board, square)
+    #right_square=get_right_square(game.board, square)
     up_square=get_up_square(game.board, square)
-    down_square=get_down_square(game.board, square)
-
+    #down_square=get_down_square(game.board, square)
     
+    check_squares=[]
+    
+    if left_square and game.attraction in get_val(game.board, left_square):
+        num_e=0
+        cur_square=left_square
+        if get_left(game.board, cur_square) in {'e', None}:
+            num_e += 1
+        if get_up(game.board, cur_square) in {'e', None}:
+            num_e += 1
+        if not get_down(game.board, cur_square):
+            num_e += 1
+        check_squares.append((left_square, num_e))
+    #if right_square and game.attraction in get_val(game.board, right_square):
+    #    num_out=0
+    #    num_e=0
+    #    cur_square=right_square
+    #    if get_up(game.board, cur_square) in {'e', None}:
+    #        num_e += 1
+    #    if get_right(game.board, cur_square):
+    #        num_out += 1
+    #    if get_down(game.board, cur_square):
+    #        num_out += 1
+    #    check_squares.append((right_square, num_e, num_out))
+    if up_square and game.attraction in get_val(game.board, up_square):
+        num_e = 0
+        cur_square=up_square
+        if get_left(game.board, cur_square) in {'e', None}:
+            num_e += 1
+        if get_up(game.board, cur_square) in {'e',None}:
+            num_e += 1
+        if get_right(game.board, cur_square) in {'e',None}:
+            num_e += 1
+        check_squares.append((up_square, num_e))
+    #if down_square and game.attraction in get_val(game.board, down_square):
+    #    num_out = 0
+    #    num_e = 0
+    #    cur_square=down_square
+    #    if get_left(game.board, cur_square):
+    #        num_out += 1
+    #    if get_right(game.board, cur_square):
+    #        num_out += 1
+    #    if get_down(game.board, cur_square):
+    #        num_out += 1
+    #    check_squares.append((down_square, num_e, num_out))
 
-    #if len(adjacent_squares) == 3:
-    #    cant_be.append('e')
-    #else:
-
-    #cur_e = game.board[square] == 'e'
-    if left_square and game.attraction in get_left(game.board, square):
-        adjacent_squares=get_adjacent_squares(game.board,square)
-        num_e = adjacent_squares.count('e')
-        tmp_left=get_left_square(game.board, left_square)
-        tmp_up=get_up_square(game.board, left_square)
-        if len(adjacent_squares) == 3:
+    for check in check_squares:
+        cur_square, num_e = check
+        if num_e >= 2:
+            broken=True
+            return ReturnVals(must_be, cant_be, broken)
+        elif num_e == 1:
             cant_be.append('e')
-        elif len(adjacent_squares) == 4:
-            if tmp_left == 'e' or tmp_up == 'e':
-                cant_be.append('e')
-    if right_square and game.attraction in get_right(game.board, square):
-        adjacent_squares=get_adjacent_squares(game.board,right_square)
-        num_e = adjacent_squares.count('e')
-        tmp_up=get_up_square(game.board, right_square)
-        if len(adjacent_squares) == 3:
-            cant_be.append('e')
-        elif len(adjacent_squares) == 4:
-            if tmp_up == 'e':
-                cant_be.append('e')
-    if up_square and game.attraction in get_up(game.board, square):
-        adjacent_squares=get_adjacent_squares(game.board,up_square)
-        num_e = adjacent_squares.count('e')
-        if len(adjacent_squares) == 3:
-            cant_be.append('e')
-        elif len(adjacent_squares) == 4:
-            if num_e >= 1:
-                cant_be.append('e')
-    if down_square and game.attraction in get_down(game.board, square):
-        adjacent_squares=get_adjacent_squares(game.board,down_square)
-        num_e = adjacent_squares.count('e')
-        if len(adjacent_squares) == 3:
-            cant_be.append('e')
-    #if last and not fulfilled:
-    #    cur_val=game.board[square[0],square[1]]
-    #    # temporarily change the board
-    #    game.board[square[0],square[1]] = game.adjacency
-    #    if check_adjacency(game.board, game.adjacency):
-    #        # revert back
-    #        game.board[square[0],square[1]] = cur_val
-    #        must_be=game.attraction
-    #    else:
-    #        # revert back
-    #        game.board[square[0],square[1]] = cur_val
-    #        broken=True
+        elif num_e == 0:
+            continue
+        #if abs(num_out-num_e) == 1:
+        #    cant_be.append('e')
+        #elif num_e > 0 and num_e == num_out:
+        #    broken=True
+        #    return ReturnVals(must_be, cant_be, broken)
+        #elif num_e - num_out > 1:
+        #    broken=True
+        #    return ReturnVals(must_be, cant_be, broken)
+        
     ret_vals = ReturnVals(must_be, cant_be, broken)
 
     return ret_vals
 
 def get_possible_priority(game, square, last):
+    ReturnVals = namedtuple("ReturnVals","must_be cant_be broken")
+    must_be=[]
+    cant_be=[]
+    broken=False
+    
+    num_sq_left = len(SQ_INDEX_LIST) - SQ_INDEX_LIST.index(square)
+    all_vals=get_all_vals_as_list(game.board)
+    count1 = [x[0] if len(x) > 1 else None for x in all_vals].count(game.priority[0])
+    count2 = [x[1] if len(x) > 1 else None for x in all_vals].count(game.priority[1])
+
+    diff = count2 - count1 + 1
+    if diff == num_sq_left:
+        must_be.append(game.priority)
+    elif diff > num_sq_left:
+        broken = True
+        return ReturnVals(must_be, cant_be, broken)
+    return ReturnVals(must_be, cant_be, broken)
+
+def get_possible_priority_old(game, square, last):
     ReturnVals = namedtuple("ReturnVals","must_be cant_be broken")
     must_be=[]
     cant_be=[]
@@ -750,7 +824,15 @@ def undo_last_step(board, i, cards, cant_be_dict):
     cant_be_dict[get_hash_board(board)].append(last_val)
     return i
 
-def find_valid_state(game):
+def multi_try_find_valid_state(game):
+    for i in range(0,200):
+        if find_valid_state(game, 50):
+            return True
+        if i % 10 == 0:
+            logging.debug ("Try #{}".format(i))
+    return False
+
+def find_valid_state(game, cutoff=0):
     cards=defaultdict(lambda:4)
 
     game.board[:]='e'
@@ -788,6 +870,8 @@ def find_valid_state(game):
         i += 1
         logging.debug ("Trying: " + get_comma_string(game.board))
         num_end_states += 1
+        if cutoff != 0 and num_end_states > cutoff:
+            return False
         if num_end_states % 1000 == 0:
             logging.info ("Tried: " + str(num_end_states))
         if i == len(SQ_INDEX_LIST):
@@ -833,48 +917,57 @@ def check_win(game):
 def setup_logging():
     logging.basicConfig(stream=sys.stdout, level=logging.INFO)
 
-
-#game.initialize_rules('C','T','rG','A', 'yA','TA','RG','TL')
-#game.board.reshape(16)[:]=['e','e','yC','yC','e','e','bC','bA','bA','bC','bC','rG','gC','bC','e','e']
-
-#game.board.reshape(16)[:]=['e','e','yC','yC','e','e','bC','bA','bA','bC','bC','bC','rG','bT','bT','rG']
 #game.board.reshape(16)[:]=['e','e','yC','yC','e','e','bC','bA','bA','bC','bC','rG','gC','bC','bT','rG']
 #print_board(game.board)
 
-#logging.info ("Finding result")
-#result = find_valid_state(game)
-#if result:
-#    print ("SUCCESS:")
-#    print_board(game.board)
-#else:
-#    print ("Impossible set of rules")
-
 def validate_rules(game):
     # 1. attribution of red / T with priority of red over T
-    if game.priority[0] in game.attribution and game.priority[1] in game.attribution:
-        print ("Invalid rules(1): " + ', '.join(rules))
-        return False
-    # 2. Col uniformity of T with equilibrium of T
-    if game.uniformity[0]=='C' and game.uniformity[1] == game.equilibrium:
-        print ("Invalid rules(2): " + ', '.join(rules))
+    # 2. Row uniformity of T with equilibrium of T
+
+    # 1. Attribution of rT with priority of rT
+    if (game.attribution == game.priority):
+        logging.debug ("Invalid rules(1): " + ", ".join(rules))
         return False
 
-    # 3. Top/Bottom Middle zone, Equilibrium of T, Attraction with T
+    # 2. Row1 / Row2 zoning with Column Uniformity T, Adjacency T, Equilibrium T
+    if (game.zoning == "ROW1" or game.zoning == "ROW2") and game.uniformity == game.adjacency == game.equilibrium:
+        logging.debug ("Invalid rules(2): " + ", ".join(rules))
+        return False
+
+    # 3. Row1 / Row2 zoning with Attraction T, Equilibrium T
+    if (game.zoning == "ROW1" or game.zoning == "ROW2") and game.attraction == game.equilibrium:
+        logging.debug ("Invalid rules(3): " + ", ".join(rules))
+        return False
+
+    # 4. Top/Bottom Middle zone, Equilibrium of T, Attraction with T
     if (game.zoning == 'TM' or game.zoning == 'LM') and game.equilibrium == game.attraction:
-        print ("Invalid rules(3): " + ', '.join(rules))
+        logging.debug ("Invalid rules(4): " + ', '.join(rules))
+        return False
+
+    # 5. Repulsion of Te with equilibrium of T
+    if (game.zoning[:3] == "ROW" and 'e' in game.repulsion):
+        logging.debug ("Invalid rules(5): " + ', '.join(rules))
+        return False
+    
     return True
+
 
 if __name__ == "__main__":
     setup_logging()
     game = GameState()
     for i,rules in enumerate(product(ADJACENCY_OPT, ATTRACT_OPT, ATTRIBUTION_OPT, EQUILIBRIUM_OPT, PRIORITY_OPT, REPULSION_OPT, UNIFORM_OPT, ZONING_OPT)):
         #rules=['T', 'T', 'rT', 'T', 'gT', 'TC', 'CC', 'TR']
+        #rules="T, T, rT, T, gT, TC, CC, TL".split(', ')
+        if tuple(rules) in VALID_RULES:
+            print ("Already validated: " + str(rules))
+            continue
         game.initialize_rules(*rules)
+        
         if not validate_rules(game):
             continue
         print ("Trying: " + ', '.join(rules))
-        if find_valid_state(game):
+        #if find_valid_state(game):
+        if multi_try_find_valid_state(game):
             print (str(i) + ". TRUE: " + str(rules))
         else:
             print (str(i) + ". FALSE: " + str(rules))
-
