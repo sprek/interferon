@@ -626,18 +626,23 @@ def get_possible_adjacency(game, square, last, adjacent_squares):
         if all([game.adjacency not in x for x in adjacent_squares]):
             cant_be.append(game.adjacency)
 
-    if get_up(game.board, square) and game.adjacency in get_up(game.board, square):
-        if not found_one:
-            # we're about to move away from the only square that we can attach to
-            must_be.append(game.adjacency)
-        else:
-            # we're about to move away from the last square that can be adjacent
-            if game.adjacency in game.attribution and game.attribution not in all_vals:
-                must_be.append(game.attribution)
-            if game.equilibrium == game.adjacency:
-                above_total, below_total = get_above_and_below_totals(game.board, game.equilibrium)
-                if above_total > below_total:
-                    must_be.append(game.equilibrium)
+    #if get_up(game.board, square) and game.adjacency in get_up(game.board, square):
+    #    # check that this is the last match for the top row row and cur column
+    #    up_row_vals=get_vals_in_zone(game.board, "ROW" + str(square[0]-1))
+    #    cur_row_vals=get_vals_in_zone(game.board, "ROW" + str(square[0]))
+    #    if ([game.adjacency in x for x in up_row_vals[:square[1]]].count(True) == 1) and \
+    #       ([game.adjacency in x for x in cur_row_vals[:square[1]]].count(True) == 0):
+    #        if not found_one:
+    #            # we're about to move away from the only square that we can attach to
+    #            must_be.append(game.adjacency)
+    #        else:
+    #            # we're about to move away from the last square that can be adjacent
+    #            if game.adjacency in game.attribution and game.attribution not in all_vals:
+    #                must_be.append(game.attribution)
+    #            if game.equilibrium == game.adjacency:
+    #                above_total, below_total = get_above_and_below_totals(game.board, game.equilibrium)
+    #                if above_total > below_total:
+    #                    must_be.append(game.equilibrium)
 
     #if last:
     #    if not check_adjacency(game.board, game.adjacency):
