@@ -1,26 +1,27 @@
 
 import pdb
-from valid_rules import VALID_RULES
+#from valid_rules import VALID_RULES
 import numpy as np
 from collections import namedtuple, defaultdict, deque
 from itertools import product
 import random
 import logging
 import sys
+from enum import Enum
 
 ADJACENCY_OPT=['T','C','G','A','r','g','b','y']
 ATTRACT_OPT=['T','C','G','A','r','g','b','y']
-ATTRIBUTION_OPT=['rT', 'gT', 'bT', 'yT', 'rC', 'gC', 'bC', 'yC', 'rG', 'gG', 'bG', 'yG', 'rA', 'gA', 'bA', 'yA']
+#ATTRIBUTION_OPT=['rT', 'gT', 'bT', 'yT', 'rC', 'gC', 'bC', 'yC', 'rG', 'gG', 'bG', 'yG', 'rA', 'gA', 'bA', 'yA']
+ATTRIBUTION_OPT=['Tr', 'Tg', 'Tb', 'Ty', 'Cr', 'Cg', 'Cb', 'Cy', 'Gr', 'Gg', 'Gb', 'Gy', 'Ar', 'Ag', 'Ab', 'Ay']
 EQUILIBRIUM_OPT=['T','C','G','A','r','g','b','y']
-#PRIORITY_OPT=['rT', 'gT', 'bT', 'yT', 'rC', 'gC', 'bC', 'yC', 'rG', 'gG', 'bG', 'yG', 'rA', 'gA', 'bA', 'yA']
-PRIORITY_OPT=['TC', 'TG', 'TA', 'CT', 'CG', 'CA', 'GT', 'GC', 'GA', 'AT', 'AC', 'AG']
-#REPULSION_OPT=['TC', 'TG', 'TA', 'Te', 'CG', 'CA', 'Ce', 'GA', 'Ge', 'Ae']
+#PRIORITY_OPT=['TC', 'TG', 'TA', 'CT', 'CG', 'CA', 'GT', 'GC', 'GA', 'AT', 'AC', 'AG']
+PRIORITY_OPT=['rg', 'rb', 'ry', 'gr', 'gb', 'gy', 'br', 'bg', 'by', 'yr', 'yg', 'yb']
 REPULSION_OPT=['TC', 'TG', 'TA', 'CG', 'CA', 'GA', 'rg', 'rb', 'ry', 'gb', 'gy', 'by']
 UNIFORM_OPT=['T', 'C', 'G', 'A', 'r', 'g', 'b', 'y']
-ZONING_OPT=['TL', 'TM', 'TR', 'ML', 'MR', 'LL', 'LM', 'LR', 'COL0', 'COL1', 'COL2', 'COL3', 'ROW0', 'ROW1', 'ROW2', 'ROW3']
+ZONING_OPT=['TL', 'TR', 'ML', 'MR', 'LL', 'LR', 'COL0', 'COL1', 'COL2', 'COL3', 'ROW0', 'ROW3']
 #ZONING_OPT=['LT', 'LC', 'LG', 'LA', 'Lr', 'Lg', 'Lb', 'Ly', 'RT', 'RC', 'RG', 'RA', 'Rr', 'Rg', 'Rb', 'Ry']
-
-
+#PRIORITY_OPT=['rT', 'gT', 'bT', 'yT', 'rC', 'gC', 'bC', 'yC', 'rG', 'gG', 'bG', 'yG', 'rA', 'gA', 'bA', 'yA']
+#REPULSION_OPT=['TC', 'TG', 'TA', 'Te', 'CG', 'CA', 'Ce', 'GA', 'Ge', 'Ae']
 class GameState:
     """ --------------------------------------------------
     The rule states are:
@@ -144,7 +145,7 @@ def check_attribution(board, attribution_value):
     if not _check_rule(board, check_single_attribution, attribution_value):
         return False
     # check that miniimum case exists
-    return attribution_value in get_all_vals_as_list(board)
+    return reverse_attribution(attribution_value) in get_all_vals_as_list(board)
 
 def check_equilibrium(board, equilibrium_val):
     """ --------------------------------------------------
@@ -514,9 +515,12 @@ def get_possible_vals(game, square, last, prelim_cant_be):
 
     # attribution
     # if attribution is rT, add rG, rC, rA to cant_be list
-    [cant_be.add(game.attribution[0] + x) for x in valid_letters.difference(set([game.attribution[1]]))]
+    [cant_be.add(x + game.attribution[0]) for x in valid_colors.difference(set([game.attribution[1]]))]
+    #[cant_be.add(game.attribution[0] + x) for x in valid_letters.difference(set([game.attribution[1]]))]
+    #print ("CANT BE: " + ','.join([x + game.attribution[0] for x in valid_colors.difference(set([game.attribution[1]]))]))
+    
     if last and not check_attribution(game.board, game.attribution):
-        must_be.add(game.attribution)
+        must_be.add(reverse_attribution(game.attribution))
     
     logging.debug ("ATTRIBUTION: Must be: " + str(must_be) + " Cant be: " + str(cant_be))
 
@@ -739,7 +743,7 @@ def get_possible_adjacency(game, square, last, adjacent_squares, allow_incomplet
                     if game.adjacency in game.board[sq].decode():
                         min_col=min(min_col, sq[1])
                         max_col=max(max_col, sq[1])
-                if min_col >= square[1] or max_col <= square[1]:
+                if min_col <= square[1] or max_col >= square[1]:
                     # we're inbetween the two incomplete adjacency groups
                     must_be.append(game.adjacency)
 
@@ -754,8 +758,8 @@ def get_possible_adjacency(game, square, last, adjacent_squares, allow_incomplet
                 must_be.append(game.adjacency)
             else:
                 # we're about to move away from the last square that can be adjacent
-                if game.adjacency in game.attribution and game.attribution not in all_vals:
-                    must_be.append(game.attribution)
+                if game.adjacency in game.attribution and reverse_attribution(game.attribution) not in all_vals:
+                    must_be.append(reverse_attribution(game.attribution))
                 if game.equilibrium == game.adjacency:
                     above_total, below_total = get_above_and_below_totals(game.board, game.equilibrium)
                     if above_total > below_total:
@@ -772,6 +776,9 @@ def get_possible_adjacency(game, square, last, adjacent_squares, allow_incomplet
             
     return ReturnVals(must_be, cant_be, broken)
 
+def reverse_attribution(attribution):
+    return attribution[1] + attribution[0]
+
 def get_possible_attraction(game, square, last):
     #pdb.set_trace()
     ReturnVals = namedtuple("ReturnVals","must_be cant_be broken")
@@ -782,28 +789,6 @@ def get_possible_attraction(game, square, last):
     # add corners to cant_be
     if square in [(0,0),(3,0),(0,3),(3,3)]:
         cant_be.append(game.attraction)
-
-    # check zoning
-    #if game.zoning == 'ROW1':
-    #    if square[0] == 0:
-    #        cant_be.append(game.attraction)
-    #    if square[0] == 2 and square[1] in [0,3]:
-    #        cant_be.append(game.attraction)
-    #elif game.zoning == 'ROW2':
-    #    if square[0] == 3:
-    #        cant_be.append(game.attraction)
-    #    if square[0] == 1 and square[1] in [0,3]:
-    #        cant_be.append(game.attraction)
-    #elif game.zoning == 'COL1':
-    #    if square[1] == 0:
-    #        cant_be.append(game.attraction)
-    #    if square[1] == 2 and square[0] in [0,3]:
-    #        cant_be.append(game.attraction)
-    #elif game.zoning == 'COL2':
-    #    if square[1] == 3:
-    #        cant_be.append(game.attraction)
-    #    if square[1] == 1 and square[0] in [0,3]:
-    #        cant_be.append(game.attraction)
 
     adjacent_square_locs = get_adjacent_square_locations(game.board, square)
     for sq in adjacent_square_locs:
@@ -886,52 +871,53 @@ def get_possible_priority(game, square, last):
 
     if square == (3,3):
         if count1 == 0:
-            broken = True
-            return ReturnVals(must_be, cant_be, broken)
-        elif count2 == 0:
-            must_be.append(game.priority[1])
+            must_be.append(game.priority[0])
+            #broken = True
+            #return ReturnVals(must_be, cant_be, broken)
+        #elif count2 == 0:
+        #    must_be.append(game.priority[1])
     return ReturnVals(must_be, cant_be, broken)
 
-def get_possible_priority_old(game, square, last):
-    ReturnVals = namedtuple("ReturnVals","must_be cant_be broken")
-    must_be=[]
-    cant_be=[]
-    broken=False
-
-    cant_be.append(game.priority)
-    already_good=check_priority(game.board, game.priority)
-    lowest_row_letter_found=5
-    highest_row_color_found=-1
-    # find highest occurence of letter
-    sq = np.nditer(game.board, flags=['multi_index'])
-    while not sq.finished:
-        if game.priority[1] in get_iterval(sq):
-            lowest_row_letter_found=min(lowest_row_letter_found, sq.multi_index[0])
-        if game.priority[0] in get_iterval(sq):
-            highest_row_color_found=max(highest_row_color_found, sq.multi_index[0])
-        sq.iternext()
-    if lowest_row_letter_found <= square[0]:
-        if not already_good:
-            # need to put the color down, but the letter is already above
-            broken=True
-            return ReturnVals(must_be,cant_be,broken)
-    if highest_row_color_found == -1 or highest_row_color_found == square[0]:
-        # don't have a color yet, or it's on the current line:
-        # add letter to cant_be
-        #logging.debug ("HIGHEST ROW COLOR: " + str(highest_row_color_found))
-        cant_be.append(game.priority[1])
-    if lowest_row_letter_found <= square[0]:
-        # letter exists and is lower or equal to current row
-        # add color ot cant_be
-        cant_be.append(game.priority[0])
-    if last:
-        if not already_good:
-            if highest_row_color_found != -1 and highest_row_color_found < 3:
-                must_be.append(game.priority[1])
-            else:
-                broken=True
-                return ReturnVals(must_be,cant_be,broken)
-    return ReturnVals(must_be,cant_be,broken)
+#def get_possible_priority_old(game, square, last):
+#    ReturnVals = namedtuple("ReturnVals","must_be cant_be broken")
+#    must_be=[]
+#    cant_be=[]
+#    broken=False
+#
+#    cant_be.append(game.priority)
+#    already_good=check_priority(game.board, game.priority)
+#    lowest_row_letter_found=5
+#    highest_row_color_found=-1
+#    # find highest occurence of letter
+#    sq = np.nditer(game.board, flags=['multi_index'])
+#    while not sq.finished:
+#        if game.priority[1] in get_iterval(sq):
+#            lowest_row_letter_found=min(lowest_row_letter_found, sq.multi_index[0])
+#        if game.priority[0] in get_iterval(sq):
+#            highest_row_color_found=max(highest_row_color_found, sq.multi_index[0])
+#        sq.iternext()
+#    if lowest_row_letter_found <= square[0]:
+#        if not already_good:
+#            # need to put the color down, but the letter is already above
+#            broken=True
+#            return ReturnVals(must_be,cant_be,broken)
+#    if highest_row_color_found == -1 or highest_row_color_found == square[0]:
+#        # don't have a color yet, or it's on the current line:
+#        # add letter to cant_be
+#        #logging.debug ("HIGHEST ROW COLOR: " + str(highest_row_color_found))
+#        cant_be.append(game.priority[1])
+#    if lowest_row_letter_found <= square[0]:
+#        # letter exists and is lower or equal to current row
+#        # add color ot cant_be
+#        cant_be.append(game.priority[0])
+#    if last:
+#        if not already_good:
+#            if highest_row_color_found != -1 and highest_row_color_found < 3:
+#                must_be.append(game.priority[1])
+#            else:
+#                broken=True
+#                return ReturnVals(must_be,cant_be,broken)
+#    return ReturnVals(must_be,cant_be,broken)
 
 
 SQ_INDEX_LIST=[(0,0),(0,1),(0,2),(0,3),(1,0),(1,1),(1,2),(1,3),(2,0),(2,1),(2,2),(2,3),(3,0),(3,1),(3,2),(3,3)]
@@ -1070,55 +1056,55 @@ def validate_rules(game):
     #    logging.info ("Invalid rules(1): " + ", ".join(rules))
     #    return False
 
-    # 1. Row1 / Row2 zoning with Uniformity T, Adjacency T, Equilibrium T
-    if game.zoning in ["ROW1", "ROW2"] and game.uniformity == game.adjacency == game.equilibrium:
-        logging.info ("Invalid rules(1): " + ", ".join(get_game_rules(game)))
-        return False
-    
-    # 2. Row1 / Row2 zoning with Adjacency T, Equilibrium r, attribution rT
-    if game.zoning in ["ROW1", "ROW2"] and game.adjacency == game.attribution[1] and game.equilibrium == game.attribution[0]:
-        logging.info ("Invalid rules(2): " + ", ".join(get_game_rules(game)))
-        return False
-
-    # 3. Row1 / Row2 zoning with Adjacency T, Equilibrium T
-    if game.zoning in ["ROW1", "ROW2"] and game.adjacency == game.equilibrium:
-        logging.info ("Invalid rules(3): " + ", ".join(get_game_rules(game)))
-        return False
-    
-    # 4. Row1 / Row2 zoning with Attraction T, Equilibrium T
-    if game.zoning in ["ROW1", "ROW2"] and game.attraction == game.equilibrium:
-        logging.info ("Invalid rules(4): " + ", ".join(get_game_rules(game)))
-        return False
-
-    # 5. Row 1 / Row 2 zoning, equilibrium r, attribution rT, attraction T
-    if game.zoning in ["ROW1", "ROW2"] and game.equilibrium == game.attribution[0] and game.attraction == game.attribution[1]:
-        logging.info ("Invalid rules(5): " + ', '.join(get_game_rules(game)))
-        return False
-
-    # 6. Top/Bottom Middle zone, Equilibrium of T, Attraction with T
-    if game.zoning in ['TM','LM'] and game.equilibrium == game.attraction:
-        logging.info ("Invalid rules(6): " + ', '.join(get_game_rules(game)))
-        return False
-
-    # 7. Top/Bottom Middle zone, Equilibrium of r, Attraction with T, attribution of rT
-    if game.zoning in ['TM','LM'] and game.equilibrium == game.attribution[0] and game.attraction == game.attribution[1]:
-        logging.info ("Invalid rules(7): " + ', '.join(get_game_rules(game)))
-        return False
-
-    # 8. Top/Bottom Middle zone, Equilibrium of r, attraction of r
-    if game.zoning in ['TM','LM'] and game.equilibrium == game.attraction:
-        logging.info ("Invalid rules(8): " + ', '.join(get_game_rules(game)))
-        return False
-
-    # 9. Row1 / Row 2 zone, adjacency of G, uniformity of G, equilibrium of A, priority of GA
-    if game.zoning in ['ROW1','ROW2'] and game.adjacency == game.uniformity and game.priority[0]==game.adjacency and game.equilibrium == game.priority[1]:
-        logging.info ("Invalid rules(9): " + ', '.join(get_game_rules(game)))
-        return False
+    ## 1. Row1 / Row2 zoning with Uniformity T, Adjacency T, Equilibrium T
+    #if game.zoning in ["ROW1", "ROW2"] and game.uniformity == game.adjacency == game.equilibrium:
+    #    logging.info ("Invalid rules(1): " + ", ".join(get_game_rules(game)))
+    #    return False
+    #
+    ## 2. Row1 / Row2 zoning with Adjacency T, Equilibrium r, attribution rT
+    #if game.zoning in ["ROW1", "ROW2"] and game.adjacency == game.attribution[1] and game.equilibrium == game.attribution[0]:
+    #    logging.info ("Invalid rules(2): " + ", ".join(get_game_rules(game)))
+    #    return False
+    #
+    ## 3. Row1 / Row2 zoning with Adjacency T, Equilibrium T
+    #if game.zoning in ["ROW1", "ROW2"] and game.adjacency == game.equilibrium:
+    #    logging.info ("Invalid rules(3): " + ", ".join(get_game_rules(game)))
+    #    return False
+    #
+    ## 4. Row1 / Row2 zoning with Attraction T, Equilibrium T
+    #if game.zoning in ["ROW1", "ROW2"] and game.attraction == game.equilibrium:
+    #    logging.info ("Invalid rules(4): " + ", ".join(get_game_rules(game)))
+    #    return False
+    #
+    ## 5. Row 1 / Row 2 zoning, equilibrium r, attribution rT, attraction T
+    #if game.zoning in ["ROW1", "ROW2"] and game.equilibrium == game.attribution[0] and game.attraction == game.attribution[1]:
+    #    logging.info ("Invalid rules(5): " + ', '.join(get_game_rules(game)))
+    #    return False
+    #
+    ## 6. Top/Bottom Middle zone, Equilibrium of T, Attraction with T
+    #if game.zoning in ['TM','LM'] and game.equilibrium == game.attraction:
+    #    logging.info ("Invalid rules(6): " + ', '.join(get_game_rules(game)))
+    #    return False
+    #
+    ## 7. Top/Bottom Middle zone, Equilibrium of r, Attraction with T, attribution of rT
+    #if game.zoning in ['TM','LM'] and game.equilibrium == game.attribution[0] and game.attraction == game.attribution[1]:
+    #    logging.info ("Invalid rules(7): " + ', '.join(get_game_rules(game)))
+    #    return False
+    #
+    ## 8. Top/Bottom Middle zone, Equilibrium of r, attraction of r
+    #if game.zoning in ['TM','LM'] and game.equilibrium == game.attraction:
+    #    logging.info ("Invalid rules(8): " + ', '.join(get_game_rules(game)))
+    #    return False
+    #
+    ## 9. Row1 / Row 2 zone, adjacency of G, uniformity of G, equilibrium of A, priority of GA
+    #if game.zoning in ['ROW1','ROW2'] and game.adjacency == game.uniformity and game.priority[0]==game.adjacency and game.equilibrium == game.priority[1]:
+    #    logging.info ("Invalid rules(9): " + ', '.join(get_game_rules(game)))
+    #    return False
 
     # 10. Col 1 / Col 2 zone, Uniformity A, attraction A, priority AT, (either adjacency T or equilibrium T)
-    if game.zoning in ['COL1','COL2'] and game.uniformity == game.attraction and game.priority[0] == game.uniformity and (game.priority[1] == game.adjacency or game.priority[2] == game.adjacency):
-        logging.info ("Invalid rules(10): " + ', '.join(get_game_rules(game)))
-        return False
+    #if game.zoning in ['COL1','COL2'] and game.uniformity == game.attraction and game.priority[0] == game.uniformity and (game.priority[1] == game.adjacency or game.priority[2] == game.adjacency):
+    #    logging.info ("Invalid rules(10): " + ', '.join(get_game_rules(game)))
+    #    return False
     
     return True
 
@@ -1192,18 +1178,28 @@ def print_rules(rules):
                       "uniformity = " + str(rules[6]),
                       "zoning = " + str(rules[7])]))
 
-                    
+class RunMode(Enum):
+    RANDOM=1
+    PRODUCT=2
+    SHUFFLE_PRODUCT=3
+    RULE_LIST=4
+
+# --------------------------------------------------
+# --------------------------------------------------
+
 if __name__ == "__main__":
-    RANDOM = 1
+    run_mode=RunMode.RANDOM
+    #RANDOM = 1
     ADJUST_RULES = 0  # the "players" adjust the rules they see to reduce repeat letters / colors
     CHECK_IF_ALREADY_VALID = 0
-    SHUFFLE_PROD = 0
-    RULE_LIST = 0
+    #SHUFFLE_PROD = 0
+    #RULE_LIST = 0
     rule_list = []
+    #rule_list=[('A', 'G', 'yA', 'y', 'CA', 'CG', 'C', 'LR')]
     setup_logging()
     game = GameState()
     i=0
-    if not SHUFFLE_PROD:
+    if not run_mode in [RunMode.PRODUCT, RunMode.SHUFFLE_PRODUCT]:
         rules_prod = product(ADJACENCY_OPT, ATTRACT_OPT, ATTRIBUTION_OPT, EQUILIBRIUM_OPT, PRIORITY_OPT, REPULSION_OPT, UNIFORM_OPT, ZONING_OPT)
     else:
         rules=(ADJACENCY_OPT, ATTRACT_OPT, ATTRIBUTION_OPT, EQUILIBRIUM_OPT, PRIORITY_OPT, REPULSION_OPT, UNIFORM_OPT, ZONING_OPT)
@@ -1214,7 +1210,7 @@ if __name__ == "__main__":
         rules_prod = product(*[x[0] for x in rule_opts])
         
     while True:
-        if RANDOM:
+        if run_mode == RunMode.RANDOM:
             rules=(random.choice(ADJACENCY_OPT),
                    random.choice(ATTRACT_OPT),
                    random.choice(ATTRIBUTION_OPT),
@@ -1227,23 +1223,23 @@ if __name__ == "__main__":
             game.initialize_rules(*rules)
             if ADJUST_RULES:
                 adjust_rules(game)
-        elif RULE_LIST:
+        elif run_mode == RunMode.RULE_LIST:
             if i >= len(rule_list):
                 break
             rules = rule_list[i]
             game.initialize_rules(*rules)
-        else:
+        elif run_mode in [RunMode.PRODUCT, RunMode.SHUFFLE_PRODUCT]:
             rules = rules_prod.__next__()
-            if SHUFFLE_PROD:
+            if run_mode == RunMode.SHUFFLE_PRODUCT:
                 rules_with_order=zip(rules,new_order)
                 rules = [x[0] for x in sorted(rules_with_order, key=lambda x: x[1])]
             game.initialize_rules(*rules)
 
-        if CHECK_IF_ALREADY_VALID:
-            if tuple(rules) in VALID_RULES:
-                print ("Already validated: " + str(rules))
-                i += 1
-                continue
+        #if CHECK_IF_ALREADY_VALID:
+        #    if tuple(rules) in VALID_RULES:
+        #        print ("Already validated: " + str(rules))
+        #        i += 1
+        #        continue
         
         if not validate_rules(game):
             i += 1
